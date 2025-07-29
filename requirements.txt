@@ -1,0 +1,21 @@
+# 네이버 증권 뉴스 크롤링 및 AI 분석 시스템 필수 패키지
+
+# Gemini API (최신 버전)
+google-generativeai
+
+# 환경변수 관리
+python-dotenv
+
+# 웹 크롤링
+requests
+beautifulsoup4
+lxml
+
+# HTTP 클라이언트
+httpx
+
+# 정규표현식 (고급)
+regex
+
+# 기타 유틸리티
+typing-extensions
