@@ -28,6 +28,8 @@ def buy_stock(symbol: str, quantity: int = 1):
         time.sleep(1)
     
     price = min(prices)
+    
+    
     response = broker.create_limit_buy_order(
         symbol=symbol,
         price=price,
@@ -47,4 +49,3 @@ def sell_stock(symbol: str, quantity: int, price: int):
 if __name__ == "__main__":
     buy_stock("005930", 1)
     
-    print(broker.fetch_balance())
