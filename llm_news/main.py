@@ -6,11 +6,53 @@
 import sys
 import os
 from datetime import datetime
+import json
 
 # 현재 디렉토리를 Python 경로에 추가
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from news_analyzer import IntegratedNewsAnalyzer
+
+def call_llm_test_with_json(json_file_path):
+    """
+    생성된 JSON 파일을 llm_core의 test.py에 전달하여 실행
+    """
+    try:
+        # llm_core 모듈 경로 추가
+        llm_core_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'llm_core')
+
+        # 기존 sys.path에 llm_core 경로가 없으면 추가
+        if llm_core_path not in sys.path:
+            sys.path.insert(0, llm_core_path)  # 맨 앞에 추가하여 우선순위 높임
+
+        # JSON 파일 로드
+        with open(json_file_path, 'r', encoding='utf-8') as f:
+            json_data = json.load(f)
+
+        print(f"\n🔄 llm_core test.py 자동 실행...")
+        print("=" * 60)
+
+        # llm_core의 test.py를 직접 실행하는 방식으로 변경
+        import importlib.util
+
+        test_py_path = os.path.join(llm_core_path, 'test.py')
+        spec = importlib.util.spec_from_file_location("llm_test_module", test_py_path)
+        test_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(test_module)
+
+        # JSON 데이터를 llm_test 함수에 전달
+        test_module.llm_test(json_data=json_data)
+
+        print("\n✅ llm_core 분석 완료!")
+
+    except Exception as e:
+        print(f"❌ llm_core test.py 실행 중 오류: {e}")
+        print(f"💡 JSON 파일 경로: {json_file_path}")
+
+        # 상세 오류 정보 출력
+        import traceback
+        print("상세 오류 정보:")
+        traceback.print_exc()
 
 def main():
     """메인 실행 함수"""
@@ -24,7 +66,7 @@ def main():
     analyzer = IntegratedNewsAnalyzer()
 
     print("🔧 시스템 설정:")
-    print("   - 뉴스 섹션: 정치(101)")
+    print("   - 뉴스 섹션: 경제(101)")  # 경제 섹션을 101로 수정
     print("   - 뉴스 수집 개수: 20개")
     print("   - 리포트 수집 개수: 카테고리별 10개씩")
     print("   - AI 분석: Gemini API 활용")
@@ -34,7 +76,7 @@ def main():
         # 통합 크롤링 및 분석 실행
         print("🎯 통합 크롤링 및 분석 시작...")
         result = analyzer.crawl_and_analyze_all(
-            news_section_id="101",  # 정치 섹션
+            news_section_id="101",  # 경제 섹��을 101로 수정
             news_limit=20,          # 뉴스 20개
             reports_limit=10        # 카테고리별 리포트 10개씩
         )
@@ -62,7 +104,7 @@ def main():
 
             if news_analysis and not news_analysis.get('error'):
                 print(f"   - 뉴스 감정: {news_analysis.get('overall_sentiment', '알 수 없음')}")
-                print(f"   - 감정 점수: {news_analysis.get('sentiment_score', '알 수 없음')}")
+                print(f"   - 감정 점수: {news_analysis.get('sentiment_score', '알 수 ��음')}")
                 print(f"   - 핵심 테마: {', '.join(news_analysis.get('key_themes', [])[:3])}")
                 print(f"   - 투자 신호: {news_analysis.get('investment_signals', '알 수 없음')}")
             else:
@@ -70,84 +112,37 @@ def main():
 
             if reports_analysis and not reports_analysis.get('error'):
                 print(f"   - 시장 전망: {reports_analysis.get('market_outlook', '알 수 없음')}")
-                print(f"   - 주요 종목: {', '.join(reports_analysis.get('top_mentioned_stocks', [])[:3])}")
+                print(f"   - 주요 ��목: {', '.join(reports_analysis.get('top_mentioned_stocks', [])[:3])}")
                 print(f"   - 핵심 산업: {', '.join(reports_analysis.get('key_industries', [])[:3])}")
             else:
                 print(f"   - 리포트 분석: 실패 ({reports_analysis.get('error', '알 수 없는 오류')})")
 
             # 저장된 파일 정보
             if 'saved_file' in result:
+                json_file_path = result['saved_file']
                 print(f"\n💾 결과 파일:")
-                print(f"   - JSON 파일: {result['saved_file']}")
+                print(f"   - JSON 파일: {json_file_path}")
 
                 # 파일 크기 계산
                 try:
-                    file_size = os.path.getsize(result['saved_file']) / 1024  # KB
+                    file_size = os.path.getsize(json_file_path) / 1024  # KB
                     print(f"   - 파일 크기: {file_size:.1f} KB")
                 except:
                     pass
 
+                # llm_core/test.py 자동 실행
+                call_llm_test_with_json(json_file_path)
+
             print(f"\n⏰ 완료 시간: {datetime.now().strftime('%Y년 %m월 %d일 %H시 %M분')}")
 
-            # 상세 결과 미리보기
-            print("\n" + "=" * 80)
-            print("📋 상세 결과 미리보기")
-            print("=" * 80)
-
-            # 뉴스 미리보기
-            news_data = result.get('news', {}).get('data', [])
-            if news_data:
-                print("📰 수집된 뉴스 (처음 3개):")
-                for i, news in enumerate(news_data[:3], 1):
-                    print(f"\n{i}. {news.get('title', '제목 없음')}")
-                    print(f"   📅 발행일: {news.get('publish_date', '알 수 없음')}")
-                    print(f"   📺 언론사: {news.get('media', '알 수 없음')}")
-                    print(f"   📝 본문 길이: {len(news.get('content', ''))}자")
-
-                    if news.get('content'):
-                        preview = news['content'][:100] + "..." if len(news['content']) > 100 else news['content']
-                        print(f"   📖 본문 미리보기: {preview}")
-
-                if len(news_data) > 3:
-                    print(f"\n   ... 및 {len(news_data) - 3}개 더")
-
-            # 리포트 미리보기
-            reports_data = result.get('research_reports', {}).get('data', [])
-            if reports_data:
-                print(f"\n📈 수집된 리서치 리포트 (처음 3개):")
-                for i, report in enumerate(reports_data[:3], 1):
-                    print(f"\n{i}. {report.get('title', '제목 없음')}")
-                    print(f"   🏢 증권사: {report.get('provider', '알 수 없음')}")
-                    print(f"   📂 카테고리: {report.get('category_name', '알 수 없음')}")
-                    print(f"   📅 발행일: {report.get('publish_date', '알 수 없음')}")
-                    print(f"   📝 요약 길이: {len(report.get('summary', ''))}자")
-
-                if len(reports_data) > 3:
-                    print(f"\n   ... 및 {len(reports_data) - 3}개 더")
-
-            # 성공률 통계
-            print(f"\n📊 크롤링 성공률:")
-            if news_data:
-                news_success_rate = (summary.get('successful_news_crawl', 0) / len(news_data)) * 100
-                print(f"   - 뉴스 본문 크롤링: {news_success_rate:.1f}%")
-
-            if reports_data:
-                reports_success_rate = (summary.get('successful_reports_crawl', 0) / len(reports_data)) * 100
-                print(f"   - 리포트 본문 크롤링: {reports_success_rate:.1f}%")
-
         else:
-            print("❌ 크롤링 또는 분석에 실패했습니다.")
-            print("네트워크 연결이나 웹사이트 구조 변경을 확인해주세요.")
+            print("❌ 크롤링 또는 분석 실패")
+            return
 
     except Exception as e:
-        print(f"❌ 실행 중 오류 발생: {e}")
+        print(f"❌ 시스템 실행 중 오류 발생: {e}")
         import traceback
-        print("\n상세 오류 정보:")
         traceback.print_exc()
-
-    print("\n" + "=" * 80)
-    print("🏁 통합 뉴스 & 리서치 분석 완료")
-    print("=" * 80)
 
 if __name__ == "__main__":
     main()
