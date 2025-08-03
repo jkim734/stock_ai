@@ -1,0 +1,12 @@
+numpy
+pandas
+matplotlib
+seaborn
+yfinance
+scipy
+warnings
+python-dotenv
+qiskit
+qiskit-algorithms
+qiskit-ibm-runtime
+qiskit-aer
