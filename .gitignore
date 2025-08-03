@@ -161,7 +161,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+llm_news/.env
 .venv
 env/
 venv/
