@@ -164,7 +164,7 @@ def llm_test(article: str = None, json_data: dict = None):
     # LLM 분류 테스트
     category = classify_llm(article)
     print(f"분류 결과: {category}")
-    
+
     # 종목코드 딕셔너리 로드
     stock_codes = load_stock_codes()
     buy_stocks = []  # 매수할 종목 리스트
@@ -174,7 +174,7 @@ def llm_test(article: str = None, json_data: dict = None):
         # 경제기사에서 나온 기업들의 종목 코드 찾기
         if isinstance(company_result, dict):
             company_name = company_result.get('company')
-            
+
             # 미리 지정된 종목에 해당하면 종목 코드 출력
             # 종목 코드가 없는 경우 "미상장"으로 표시
             if company_name in stock_codes:
@@ -185,7 +185,7 @@ def llm_test(article: str = None, json_data: dict = None):
 
     elif category == "정책 기사":
         positives = policy_llm(article)
-        
+
         # 정책 기사에서 긍정적인 업종 추출 후 각 업종 심층 분석 -> �� 호재 업종 마다 competitive_llm 호출
         for category in positives:
             article = crawl_naver_news_by_keyword(category['category'], page=1, sort=1)
@@ -201,7 +201,7 @@ def llm_test(article: str = None, json_data: dict = None):
     else:
         print("Invalid article type for LLM classification.")
         return
-    
+
     if len(buy_stocks) > 0:
         for stock in buy_stocks:
             kis.buy_stock(stock)
@@ -228,10 +228,11 @@ if __name__ == "__main__":
 
 이재용 삼성전자 회장이 29일 강서구 서울김포비즈니스항공센터(SGBAC)를 통해 워싱턴으로 출국하고 있다. [사진 = 연합뉴스]사진 확대
 이재용 삼성전자 회장이 29일 강서구 서울김포비즈니스항공센터(SGBAC)를 통해 워싱턴으로 출국하고 있다. [사진 = 연합뉴스]
-한편 이재용 삼성전자 회장은 미국 워싱턴DC로 출국했다. 이 회장은 주요 파트너사와 글로벌 비즈니스 협력 방안을 논의하고 신사업 기회를 모색할 예정인 것으로 알려졌다. 재계에서는 이 회장이 미국 상호관세 발효를 앞두고 관세 협상 측면 지원에 나설 것이라는 관측이 나왔다.    
+한편 이재용 삼성전자 회장은 미국 워싱턴DC로 출국했다. 이 회장은 주요 파트너사와 글로벌 비즈니스 협력 방안을 논의하고 신사업 기회를 모색할 예정인 것으로 알려졌다. 재계에서는 이 회장이 미국 상호관세 발효를 앞두고 관세 협상 측면 지원에 나설 것이라는 관측이 나왔다.
     """
 
     llm_test(test_article)  # LLM 테스트 실행
 
     end = time.time()
     print(f"Test completed in {end - start:.2f} seconds")
+
