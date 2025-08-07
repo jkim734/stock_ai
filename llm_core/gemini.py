@@ -19,27 +19,29 @@ import httpx
 
 model_name = "gemini-2.0-flash-001"
 
-client = genai.Client(api_key=os.getenv("GOOGLE_AI_API_KEY"))
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 # .env에 넣고, gitignore에 .env 추가하고, 주석해재한다음에 사용
 
 
-doc_url_1 = "https://arxiv.org/pdf/1706.03762"
-# doc_url_2 = "https://arxiv.org/pdf/2403.05530"
+# doc_url_1 = "https://arxiv.org/pdf/1706.03762"
+# # doc_url_2 = "https://arxiv.org/pdf/2403.05530"
 
-# Retrieve and upload both PDFs using the File API
-doc_data_1 = io.BytesIO(httpx.get(doc_url_1).content)
-# doc_data_2 = io.BytesIO(httpx.get(doc_url_2).content)
+# # Retrieve and upload both PDFs using the File API
+# doc_data_1 = io.BytesIO(httpx.get(doc_url_1).content)
+# # doc_data_2 = io.BytesIO(httpx.get(doc_url_2).content)
 
-sample_pdf_1 = client.files.upload(
-  file=doc_data_1,
-  config=dict(mime_type='application/pdf')
-)
-# sample_pdf_2 = client.files.upload(
-#   file=doc_data_2,
+# sample_pdf_1 = client.files.upload(
+#   file=doc_data_1,
 #   config=dict(mime_type='application/pdf')
 # )
+# # sample_pdf_2 = client.files.upload(
+# #   file=doc_data_2,
+# #   config=dict(mime_type='application/pdf')
+# # )
 
-attachments = [sample_pdf_1] # sample_pdf_2, sample_pdf_3, ...]
+# attachments = [sample_pdf_1] # sample_pdf_2, sample_pdf_3, ...]
+
+attachments = None
 
 def ask_question_to_gemini_cache(prompt, attachments=None, max_retries=5, retry_delay=5):
     start_time = time.time()
