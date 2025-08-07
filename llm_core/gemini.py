@@ -19,7 +19,7 @@ import httpx
 
 model_name = "gemini-2.0-flash-001"
 
-client = genai.Client(api_key=os.getenv("GOOGLE_AI_API_KEY"))
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 # .env에 넣고, gitignore에 .env 추가하고, 주석해재한다음에 사용
 
 
