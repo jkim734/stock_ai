@@ -4,7 +4,7 @@ import threading
 import sys
 import os
 from datetime import datetime
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.font_manager as fm
@@ -20,6 +20,77 @@ except ImportError as e:
     print(f"Optimizer import error: {e}")
     OPTIMIZER_AVAILABLE = False
 
+class RoundedFrame(tk.Frame):
+    """둥근 모서리를 가진 프레임 클래스"""
+    def __init__(self, parent, corner_radius=20, bg_color='#f0f0f0', border_color='#cccccc', border_width=2, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.corner_radius = corner_radius
+        self.bg_color = bg_color
+        self.border_color = border_color
+        self.border_width = border_width
+
+        # 캔버스 생성
+        self.canvas = tk.Canvas(self, highlightthickness=0, bg=bg_color)
+        self.canvas.pack(fill='both', expand=True, padx=5, pady=5)
+
+        # 내부 프레임
+        self.inner_frame = tk.Frame(self.canvas, bg=bg_color)
+        self.canvas_frame = self.canvas.create_window(0, 0, anchor='nw', window=self.inner_frame)
+
+        # 이벤트 바인딩
+        self.bind('<Configure>', self._on_canvas_configure)
+        self.inner_frame.bind('<Configure>', self._on_frame_configure)
+        self.canvas.bind('<Configure>', self._on_canvas_resize)
+
+    def _on_canvas_configure(self, event):
+        """캔버스 크기 변��� 시 호출"""
+        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+        self._draw_rounded_rectangle()
+
+    def _on_frame_configure(self, event):
+        """내부 프레임 크기 변경 시 호출"""
+        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+
+    def _on_canvas_resize(self, event):
+        """캔버스 크기 변경 시 내부 프레임 크기 조정"""
+        canvas_width = event.width
+        canvas_height = event.height
+
+        # 내부 프레임을 캔버스 크기에 맞춤
+        self.canvas.itemconfig(self.canvas_frame, width=canvas_width, height=canvas_height)
+        self._draw_rounded_rectangle()
+
+    def _draw_rounded_rectangle(self):
+        """둥근 모서리 사각형 그리기"""
+        self.canvas.delete('bg_rect')
+        width = self.canvas.winfo_width()
+        height = self.canvas.winfo_height()
+
+        if width > 1 and height > 1:
+            # 둥근 모서리 사각형 그리기
+            self.canvas.create_rounded_rectangle(
+                self.border_width, self.border_width,
+                width - self.border_width, height - self.border_width,
+                self.corner_radius, fill=self.bg_color, outline=self.border_color,
+                width=self.border_width, tags='bg_rect'
+            )
+# Canvas에 둥근 사각형 그리기 메서드 추가
+def create_rounded_rectangle(self, x1, y1, x2, y2, radius, **kwargs):
+    """둥근 모서리 사각형을 그리는 메서드"""
+    points = []
+
+    # 모서리 점들 계산
+    for x, y in [(x1, y1 + radius), (x1, y1), (x1 + radius, y1),
+                 (x2 - radius, y1), (x2, y1), (x2, y1 + radius),
+                 (x2, y2 - radius), (x2, y2), (x2 - radius, y2),
+                 (x1 + radius, y2), (x1, y2), (x1, y2 - radius)]:
+        points.extend([x, y])
+
+    return self.create_polygon(points, smooth=True, **kwargs)
+
+# Canvas 클래스에 메서드 추가
+tk.Canvas.create_rounded_rectangle = create_rounded_rectangle
+
 class StockAIGUI:
     def __init__(self, root):
         self.root = root
@@ -30,10 +101,16 @@ class StockAIGUI:
         """UI 구성 요소 설정"""
         self.root.title("Stock AI - Portfolio Optimizer")
         self.root.geometry("800x700")
-        self.root.configure(bg='#f0f0f0')
+        self.root.configure(bg='#000000')
+
+        # 가로폭 고정 - 가로는 크기 조절 불가, 세로는 조절 가능
+        self.root.resizable(False, True)
+
+        # 최소 크기 설정 (선택사항)
+        self.root.minsize(800, 600)
 
         # 메인 프레임
-        main_frame = ttk.Frame(self.root, padding="20")
+        main_frame = tk.Frame(self.root, bg='#000000', padx=20, pady=20)
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # 제목
@@ -41,92 +118,99 @@ class StockAIGUI:
             main_frame,
             text="Stock AI",
             font=("Arial", 32, "bold"),
-            bg='#f0f0f0',
-            fg='#2c3e50'
+            bg='#000000',
+            fg='#ffffff'
         )
-        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
+        title_label.grid(row=0, column=0, columnspan=1, pady=(0, 10))
 
         # 부제목
         subtitle_label = tk.Label(
             main_frame,
             text="It's the economy, stupid!",
             font=("Arial", 14, "italic"),
-            bg='#f0f0f0',
-            fg='#7f8c8d'
+            bg='#000000',
+            fg='#ffffff'
         )
-        subtitle_label.grid(row=1, column=0, columnspan=2, pady=(0, 30))
+        subtitle_label.grid(row=1, column=0, columnspan=1, pady=(0, 30))
 
-        # 투자 금액 입력 섹션
-        investment_frame = ttk.LabelFrame(main_frame, text="투자 설정", padding="15")
-        investment_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20))
+        # 투자 금액 입력 섹션 (둥근 모서리)
+        investment_frame = RoundedFrame(
+            main_frame,
+            corner_radius=15,
+            bg_color='#000000',
+            border_color='#444444',
+            border_width=2,
+            bg='#000000'
+        )
+        investment_frame.grid(row=2, column=0, columnspan=1, sticky=(tk.W, tk.E), pady=(0, 20))
 
-        # 투자 금액 입력
-        ttk.Label(investment_frame, text="투자 금액 (원):").grid(row=0, column=0, sticky=tk.W, pady=5)
-        self.amount_var = tk.StringVar(value="10000000")
-        amount_entry = ttk.Entry(investment_frame, textvariable=self.amount_var, font=("Arial", 12), width=20)
-        amount_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
+        # 투자 프레임 내부 위젯들
+        self._setup_investment_widgets(investment_frame.inner_frame)
 
-        # 주식 선택 방법
-        ttk.Label(investment_frame, text="주식 선택:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        # 최적화 방법 선택 (둥근 모서리)
+        optimizer_frame = RoundedFrame(
+            main_frame,
+            corner_radius=15,
+            bg_color='#000000',
+            border_color='#444444',
+            border_width=2,
+            bg='#000000'
+        )
+        optimizer_frame.grid(row=3, column=0, columnspan=1, sticky=(tk.W, tk.E), pady=(0, 20))
 
-        self.stock_method_var = tk.StringVar(value="sample")
-        method_frame = ttk.Frame(investment_frame)
-        method_frame.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
-
-        ttk.Radiobutton(method_frame, text="샘플 주식 사용", variable=self.stock_method_var, value="sample").grid(row=0, column=0, sticky=tk.W)
-        ttk.Radiobutton(method_frame, text="직접 입력", variable=self.stock_method_var, value="manual").grid(row=0, column=1, sticky=tk.W, padx=(20, 0))
-        ttk.Radiobutton(method_frame, text="JSON 파일", variable=self.stock_method_var, value="json").grid(row=0, column=2, sticky=tk.W, padx=(20, 0))
-
-        # 직접 입력 필드
-        ttk.Label(investment_frame, text="주식 코드:").grid(row=2, column=0, sticky=tk.W, pady=5)
-        self.stocks_var = tk.StringVar(value="005930,000660,035420,051910,068270")
-        stocks_entry = ttk.Entry(investment_frame, textvariable=self.stocks_var, font=("Arial", 10), width=40)
-        stocks_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
-
-        # JSON 파일 선택
-        json_frame = ttk.Frame(investment_frame)
-        json_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-
-        ttk.Label(json_frame, text="JSON 파일:").grid(row=0, column=0, sticky=tk.W)
-        self.json_file_var = tk.StringVar()
-        ttk.Entry(json_frame, textvariable=self.json_file_var, width=30, state="readonly").grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(10, 5))
-        ttk.Button(json_frame, text="파일 선택", command=self.select_json_file).grid(row=0, column=2)
-
-        # 최적화 방법 선택
-        optimizer_frame = ttk.LabelFrame(main_frame, text="최적화 방법", padding="15")
-        optimizer_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20))
-
-        self.optimizer_var = tk.StringVar(value="classic")
-        ttk.Radiobutton(optimizer_frame, text="클래식 최적화", variable=self.optimizer_var, value="classic").grid(row=0, column=0, sticky=tk.W, pady=5)
-        ttk.Radiobutton(optimizer_frame, text="양자 최적화 (시뮬레이터)", variable=self.optimizer_var, value="quantum_sim").grid(row=0, column=1, sticky=tk.W, padx=(20, 0), pady=5)
-        ttk.Radiobutton(optimizer_frame, text="양자 최적화 (IBM 하드웨어)", variable=self.optimizer_var, value="quantum_hw").grid(row=0, column=2, sticky=tk.W, padx=(20, 0), pady=5)
+        # 최적화 프레임 내부 위젯들
+        self._setup_optimizer_widgets(optimizer_frame.inner_frame)
 
         # 최적화 실행 버튼
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=4, column=0, columnspan=2, pady=20)
+        button_frame = tk.Frame(main_frame, bg='#000000')
+        button_frame.grid(row=4, column=0, columnspan=1, pady=20)
 
-        self.optimize_button = ttk.Button(
+        self.optimize_button = tk.Button(
             button_frame,
-            text="포트폴리오 최적화 실행",
+            text="🚀 포트폴리오 최적화 실행",
             command=self.run_optimization,
-            style="Accent.TButton"
+            font=("Arial", 12, "bold"),
+            bg='#0066cc',
+            fg='#ffffff',
+            activebackground='#0052a3',
+            padx=20,
+            pady=10
         )
         self.optimize_button.grid(row=0, column=0, padx=10)
 
-        ttk.Button(button_frame, text="결과 저장", command=self.save_results).grid(row=0, column=1, padx=10)
-        ttk.Button(button_frame, text="차트 보기", command=self.show_chart).grid(row=0, column=2, padx=10)
+        save_button = tk.Button(
+            button_frame,
+            text="💾 결과 저장",
+            command=self.save_results,
+            font=("Arial", 10),
+            bg='#444444',
+            fg='#ffffff',
+            activebackground='#555555'
+        )
+        save_button.grid(row=0, column=1, padx=10)
+
+        chart_button = tk.Button(
+            button_frame,
+            text="📊 차트 보기",
+            command=self.show_chart,
+            font=("Arial", 10),
+            bg='#444444',
+            fg='#ffffff',
+            activebackground='#555555'
+        )
+        chart_button.grid(row=0, column=2, padx=10)
 
         # 진행 상황 표시
-        self.progress_var = tk.StringVar(value="대기 중...")
-        progress_label = ttk.Label(main_frame, textvariable=self.progress_var, font=("Arial", 10))
-        progress_label.grid(row=5, column=0, columnspan=2, pady=10)
+        self.progress_var = tk.StringVar(value="")
+        progress_label = tk.Label(main_frame, textvariable=self.progress_var, font=("Arial", 10), bg='#000000', fg='#ffffff')
+        progress_label.grid(row=5, column=0, columnspan=1, pady=10)
 
         self.progress_bar = ttk.Progressbar(main_frame, mode='indeterminate')
-        self.progress_bar.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20))
+        self.progress_bar.grid(row=6, column=0, columnspan=1, sticky=(tk.W, tk.E), pady=(0, 20))
 
         # 결과 표시 영역
         result_frame = ttk.LabelFrame(main_frame, text="최적화 결과", padding="15")
-        result_frame.grid(row=7, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 20))
+        result_frame.grid(row=7, column=0, columnspan=1, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 20))
 
         # 결과 텍스트 위젯 (스크롤 가능)
         text_frame = ttk.Frame(result_frame)
@@ -139,13 +223,12 @@ class StockAIGUI:
         self.result_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
 
-        # 그리드 가중치 설정
+        # 그리드 가중치 설정 - 중앙 정렬을 위한 핵심 변경
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(0, weight=1)  # 첫 번째 컬럼에만 가중치
+        # main_frame.columnconfigure(1, weight=1) 이 라인 제거
         main_frame.rowconfigure(7, weight=1)
-        investment_frame.columnconfigure(1, weight=1)
-        json_frame.columnconfigure(1, weight=1)
         result_frame.columnconfigure(0, weight=1)
         result_frame.rowconfigure(0, weight=1)
         text_frame.columnconfigure(0, weight=1)
@@ -188,7 +271,6 @@ class StockAIGUI:
     def get_stock_list(self):
         """선택된 방법에 따라 주식 리스트 반환"""
         method = self.stock_method_var.get()
-
         if method == "sample":
             return ["005930", "000660", "035420", "051910", "068270"]  # 샘플 주식
         elif method == "manual":
@@ -247,7 +329,7 @@ class StockAIGUI:
 
             optimizer_type = self.optimizer_var.get()
 
-            # 진행 상황 업데이트
+            # 진��� 상��� 업데이트
             self.root.after(0, lambda: self.update_progress("데이터 수집 중..."))
 
             print(f"최적화 시작 - 방법: {optimizer_type}, 금액: {amount}, 주식: {stock_list}")
@@ -295,10 +377,11 @@ class StockAIGUI:
             self.root.after(200, self.reset_ui)
 
     def update_progress(self, message):
-        """진행 상황 업데이트"""
+        """진행 상황 업데이���"""
         self.progress_var.set(message)
         self.result_text.insert(tk.END, f"📍 {message}\n")
         self.result_text.see(tk.END)
+        self.root.update_idletasks()
 
     def display_results_safe(self, result):
         """스레드 안전한 결과 표시"""
@@ -423,7 +506,7 @@ class StockAIGUI:
         chart_window = tk.Toplevel(self.root)
         chart_window.title("포트폴리오 분석 결과")
         chart_window.geometry("1200x800")
-        chart_window.configure(bg='#f0f0f0')
+        chart_window.configure(bg='#000000')
 
         # 메인 프레임
         main_frame = ttk.Frame(chart_window, padding="10")
@@ -461,7 +544,7 @@ class StockAIGUI:
         allocation_frame = ttk.Frame(notebook, padding="10")
         notebook.add(allocation_frame, text="💰 투자 배분")
 
-        # 차트 이미지 표시
+        # ���트 이미지 표시
         self.display_chart_image(chart_frame)
 
         # 상세 결과 표시
@@ -486,14 +569,14 @@ class StockAIGUI:
                 photo = ImageTk.PhotoImage(image)
 
                 # 스크롤 가능한 프레임 생성
-                canvas = tk.Canvas(parent_frame, bg='white')
+                canvas = tk.Canvas(parent_frame, bg='black')
                 scrollbar_v = ttk.Scrollbar(parent_frame, orient="vertical", command=canvas.yview)
                 scrollbar_h = ttk.Scrollbar(parent_frame, orient="horizontal", command=canvas.xview)
 
                 canvas.configure(yscrollcommand=scrollbar_v.set, xscrollcommand=scrollbar_h.set)
 
                 # 이미지 표시
-                image_label = tk.Label(canvas, image=photo, bg='white')
+                image_label = tk.Label(canvas, image=photo, bg='black')
                 image_label.image = photo  # 참조 유지
 
                 canvas.create_window(0, 0, anchor="nw", window=image_label)
@@ -592,7 +675,7 @@ class StockAIGUI:
 
         detailed_text += f"""
 
-⏰ 분석 완료 시간: {datetime.now().strftime('%Y년 %m월 %d일 %H시 %M분 %S초')}
+⏰ 분석 완��� 시간: {datetime.now().strftime('%Y년 %m월 %d일 %H시 %M분 %S초')}
 
 📌 참고사항:
   • 이 결과는 과거 데이터를 기반으로 한 예측이며, 실제 수익을 보장하지 않습니다.
@@ -689,6 +772,172 @@ class StockAIGUI:
         summary_frame.columnconfigure(0, weight=1)
         summary_frame.columnconfigure(1, weight=1)
 
+    def _setup_investment_widgets(self, parent_frame):
+        """투자 설정 위젯들 구성"""
+        parent_frame.configure(bg='#1a1a1a')
+        # 제목 레이블
+        title_label = tk.Label(
+            parent_frame,
+            text="Settings",
+            font=("Arial", 12, "bold"),
+            bg='#1a1a1a',
+            fg='#ffffff'
+        )
+        title_label.grid(row=0, column=0, columnspan=2, pady=(15, 20), sticky=tk.W, padx=(20, 0))
+
+        # 투자 금액 입력
+        amount_label = tk.Label(parent_frame, text="투자 금액 (원):", bg='#1a1a1a', fg='#ffffff', font=("Arial", 10))
+        amount_label.grid(row=1, column=0, sticky=tk.W, pady=(0, 15), padx=(20, 0))
+
+        self.amount_var = tk.StringVar(value="10000000")
+        amount_entry = tk.Entry(
+            parent_frame,
+            textvariable=self.amount_var,
+            font=("Arial", 12),
+            bg='#2a2a2a',
+            fg='#ffffff',
+            insertbackground='#ffffff'
+        )
+        amount_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=(0, 15), padx=(15, 20))
+
+        # 주식 선택 방법
+        method_label = tk.Label(parent_frame, text="주식 선택:", bg='#1a1a1a', fg='#ffffff', font=("Arial", 10))
+        method_label.grid(row=2, column=0, sticky=tk.W, pady=(0, 10), padx=(20, 0))
+
+        self.stock_method_var = tk.StringVar(value="sample")
+        method_frame = tk.Frame(parent_frame, bg='#1a1a1a')
+        method_frame.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=(0, 10), padx=(15, 20))
+
+        # 라디오 버튼들 - 세로 배치로 변경
+        sample_radio = tk.Radiobutton(
+            method_frame, text="샘플 주식 사용",
+            variable=self.stock_method_var, value="sample",
+            bg='#1a1a1a', fg='#ffffff', selectcolor='#444444',
+            font=("Arial", 9)
+        )
+        sample_radio.grid(row=0, column=0, sticky=tk.W, pady=2)
+
+        manual_radio = tk.Radiobutton(
+            method_frame, text="직접 입력",
+            variable=self.stock_method_var, value="manual",
+            bg='#1a1a1a', fg='#ffffff', selectcolor='#444444',
+            font=("Arial", 9)
+        )
+        manual_radio.grid(row=1, column=0, sticky=tk.W, pady=2)
+
+        json_radio = tk.Radiobutton(
+            method_frame, text="JSON 파일",
+            variable=self.stock_method_var, value="json",
+            bg='#1a1a1a', fg='#ffffff', selectcolor='#444444',
+            font=("Arial", 9)
+        )
+        json_radio.grid(row=2, column=0, sticky=tk.W, pady=2)
+
+        # 직접 입력 필드
+        stocks_label = tk.Label(parent_frame, text="주식 코드:", bg='#1a1a1a', fg='#ffffff', font=("Arial", 10))
+        stocks_label.grid(row=3, column=0, sticky=tk.W, pady=(0, 10), padx=(20, 0))
+
+        self.stocks_var = tk.StringVar(value="005930,000660,035420,051910,068270")
+        stocks_entry = tk.Entry(
+            parent_frame,
+            textvariable=self.stocks_var,
+            font=("Arial", 10),
+            bg='#2a2a2a',
+            fg='#ffffff',
+            insertbackground='#ffffff'
+        )
+        stocks_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=(0, 10), padx=(15, 20))
+
+        # JSON 파일 선택
+        json_label = tk.Label(parent_frame, text="JSON 파일:", bg='#1a1a1a', fg='#ffffff', font=("Arial", 10))
+        json_label.grid(row=4, column=0, sticky=tk.W, pady=(0, 15), padx=(20, 0))
+
+        json_frame = tk.Frame(parent_frame, bg='#1a1a1a')
+        json_frame.grid(row=4, column=1, sticky=(tk.W, tk.E), pady=(0, 15), padx=(15, 20))
+
+        self.json_file_var = tk.StringVar()
+        json_entry = tk.Entry(
+            json_frame,
+            textvariable=self.json_file_var,
+            state="readonly",
+            bg='#2a2a2a',
+            fg='#ffffff',
+            font=("Arial", 9)
+        )
+        json_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+
+        json_button = tk.Button(
+            json_frame,
+            text="선택",
+            command=self.select_json_file,
+            bg='#444444',
+            fg='#ffffff',
+            activebackground='#555555',
+            font=("Arial", 9)
+        )
+        json_button.grid(row=0, column=1)
+
+        # 그리드 가중치 설정
+        parent_frame.columnconfigure(1, weight=1)
+        json_frame.columnconfigure(0, weight=1)
+
+    def _setup_optimizer_widgets(self, parent_frame):
+        """최적화 방법 위젯들 구성"""
+        parent_frame.configure(bg='#1a1a1a')
+
+        # 제목 레이블
+        title_label = tk.Label(
+            parent_frame,
+            text="Optimization method",
+            font=("Arial", 12, "bold"),
+            bg='#1a1a1a',
+            fg='#ffffff'
+        )
+        title_label.grid(row=0, column=0, columnspan=2, pady=(15, 20), sticky=tk.W, padx=(20, 0))
+
+        # 최적화 방법 설명
+        desc_label = tk.Label(
+            parent_frame,
+            text="포트폴리오 최적화 알고리즘을 선택하세요:",
+            font=("Arial", 9),
+            bg='#1a1a1a',
+            fg='#cccccc'
+        )
+        desc_label.grid(row=1, column=0, columnspan=2, pady=(0, 15), sticky=tk.W, padx=(20, 20))
+
+        self.optimizer_var = tk.StringVar(value="classic")
+
+        # 라디오 버튼들을 세로로 배치
+        radio_frame = tk.Frame(parent_frame, bg='#1a1a1a')
+        radio_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=(20, 20), pady=(0, 15))
+
+        classic_radio = tk.Radiobutton(
+            radio_frame, text="클래식 최적화 (전통적인 평균-분산 최적화)",
+            variable=self.optimizer_var, value="classic",
+            bg='#1a1a1a', fg='#ffffff', selectcolor='#444444',
+            font=("Arial", 10)
+        )
+        classic_radio.grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        quantum_sim_radio = tk.Radiobutton(
+            radio_frame, text="양자 최적화 - 시뮬레이터 (로컬 시뮬레이션)",
+            variable=self.optimizer_var, value="quantum_sim",
+            bg='#1a1a1a', fg='#ffffff', selectcolor='#444444',
+            font=("Arial", 10)
+        )
+        quantum_sim_radio.grid(row=1, column=0, sticky=tk.W, pady=5)
+
+        quantum_hw_radio = tk.Radiobutton(
+            radio_frame, text="양자 최적화 - IBM 하드웨어 (실제 양자컴퓨터)",
+            variable=self.optimizer_var, value="quantum_hw",
+            bg='#1a1a1a', fg='#ffffff', selectcolor='#444444',
+            font=("Arial", 10)
+        )
+        quantum_hw_radio.grid(row=2, column=0, sticky=tk.W, pady=5)
+
+        # 그리드 가중치 설정
+        radio_frame.columnconfigure(0, weight=1)
+
 
 def main():
     """메인 함수"""
@@ -699,7 +948,7 @@ def main():
     style = ttk.Style()
     style.theme_use('clam')
 
-    # 애플리케이션 실행
+    # 애플��케이션 실행
     root.mainloop()
 
 

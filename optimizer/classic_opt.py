@@ -191,14 +191,16 @@ class PortfolioOptimizer:
             print("최적화 실패")
             return False
 
-    def get_stock_name(self, symbol):
-        """주식 코드로부터 종목명 가져오기"""
+    def get_stock_info(self, symbol):
+        """주식 코드에서 회사명 추출"""
         try:
-            # .KS가 붙어있으면 제거
-            clean_symbol = symbol.replace('.KS', '')
-
-            # 주요 종목 매핑
-            stock_names = {
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            name = info.get('longName', info.get('shortName', symbol.replace('.KS', '')))
+            return name
+        except:
+            # 한국 주요 기업 매핑
+            korean_stocks = {
                 '005930': '삼성전자',
                 '000660': 'SK하이닉스',
                 '035420': '네이버',
@@ -208,31 +210,37 @@ class PortfolioOptimizer:
                 '006400': '삼성SDI',
                 '035720': '카카오',
                 '207940': '삼성바이오로직스',
-                '005490': 'POSCO홀딩스'
+                '006400': '삼성SDI',
+                '028260': '삼성물산',
+                '000270': '기아',
+                '012330': '현대모비스',
+                '066570': 'LG전자',
+                '003550': 'LG',
+                '096770': 'SK이노베이션',
+                '034730': 'SK',
+                '018260': '삼성에스디에스',
+                '003670': '포스코홀딩스',
+                '017670': 'SK텔레콤',
+                '030200': 'KT',
+                '033780': 'KT&G',
+                '009150': '삼성전기',
+                '010950': 'S-Oil',
+                '011200': 'HMM',
+                '015760': '한국전력',
+                '090430': '아모레퍼시픽',
+                '001570': '금양',
+                '002380': 'KCC',
+                '086790': '하나금융지주',
+                '055550': '신한지주',
+                '105560': 'KB금융',
+                '316140': '우리금융지주'
             }
-
-            if clean_symbol in stock_names:
-                return stock_names[clean_symbol]
-
-            # yfinance로 종목명 가져오기 시도
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
-                if 'longName' in info:
-                    return info['longName']
-                elif 'shortName' in info:
-                    return info['shortName']
-            except:
-                pass
-
-            # 기본값으로 심볼 반환
-            return clean_symbol
-
-        except Exception as e:
-            return symbol.replace('.KS', '')
+            
+            base_symbol = symbol.replace('.KS', '')
+            return korean_stocks.get(base_symbol, base_symbol)
 
     def calculate_allocation(self):
-        """각 기업별 투자 금액 계산"""
+        """각 기업별 투자 금액 계산 (회사명 포함)"""
         if self.optimal_weights is None:
             raise ValueError("먼저 포트폴리오를 최적화해주세요.")
 
@@ -240,20 +248,19 @@ class PortfolioOptimizer:
         symbols = list(self.stock_data.columns)
 
         for i, weight in enumerate(self.optimal_weights):
-            symbol = symbols[i].replace('.KS', '')  # .KS 제거
-            name = self.get_stock_name(symbols[i])  # 종목명 가져오기
+            symbol = symbols[i].replace('.KS', '')
+            name = self.get_stock_info(symbols[i])
             amount = self.investment_amount * weight
             allocations.append({
                 'symbol': symbol,
-                'name': name,  # 종목명 추가
+                'name': name,
                 'weight': weight,
                 'amount': int(amount),
                 'percentage': weight * 100
             })
 
-        # 가중치가 높은 순으로 정렬
+        # 가중치 순으로 정렬
         allocations.sort(key=lambda x: x['weight'], reverse=True)
-
         return allocations
 
     def monte_carlo_simulation(self, num_simulations=10000):
@@ -265,7 +272,7 @@ class PortfolioOptimizer:
         results = np.zeros((3, num_simulations))
 
         for i in range(num_simulations):
-            # 랜��� 가중치 생성
+            # 랜덤 가중치 생성
             weights = np.random.random(num_assets)
             weights /= np.sum(weights)
 
@@ -395,7 +402,7 @@ class PortfolioOptimizer:
                 'chart_file': chart_file
             }
 
-            print("최적화 완료 - ��과 반환")
+            print("최적화 완료 - 결과 반환")
             return result
 
         except Exception as e:
