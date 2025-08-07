@@ -21,20 +21,154 @@ def load_stock_codes():
             stock_dict[name] = code
     return stock_dict
 
-def llm_test(article: str):
+def llm_test(article: str = None, json_data: dict = None):
     """
-    LLM 테스트 함수
+    LLM 테스트 함수 - 기존 기사 분석 또는 JSON 데이터 분석
     """
-    
+
+    # JSON 데이터가 전달된 경우 (통합 뉴스 분석 모드)
+    if json_data:
+        print("=" * 60)
+        print("🔄 통합 뉴스 JSON 데이터 분석 모드")
+        print("=" * 60)
+
+        # 종목코드 딕셔너리 로드
+        stock_codes = load_stock_codes()
+        buy_stocks = []  # 매수할 종목 리스트
+
+        # 뉴스 데이터에서 기사들 추출
+        news_items = json_data.get('news', {}).get('data', [])
+
+        if not news_items:
+            print("❌ 분석할 뉴스 데이터가 없습니다.")
+            return
+
+        print(f"📊 총 {len(news_items)}개 뉴스 기사 분석 시작...")
+
+        # 각 뉴스 기사를 개별적으로 LLM 분석
+        for i, news_item in enumerate(news_items[:10], 1):  # 최대 10개 기사만 분석
+            title = news_item.get('title', '')
+            content = news_item.get('content', '')
+
+            if not content or len(content) < 50:  # 내용이 너무 짧으면 스킵
+                print(f"📰 뉴스 {i}: 내용 부족으로 스킵 - {title[:30]}...")
+                continue
+
+            # 제목과 내용을 합쳐서 분석용 텍스트 생성
+            article_text = f"{title}\n\n{content}"
+
+            print(f"\n📰 뉴스 {i} 분석: {title[:50]}...")
+
+            try:
+                # LLM 분류 테스트
+                category = classify_llm(article_text)
+                print(f"   분류 결과: {category}")
+
+                if category == "경제 기사":
+                    company_result = company_llm(article_text)
+                    # 경제기사에서 나온 기업들의 종목 코드 찾기
+                    if isinstance(company_result, dict):
+                        company_name = company_result.get('company')
+
+                        # 미리 지정된 종목에 해당하면 종목 코드 출력
+                        if company_name in stock_codes:
+                            print(f"   ✅ 기업: {company_name}, 종목코드: {stock_codes[company_name]}")
+                            print(f"   📈 이유: {company_result.get('reason', '')}")
+
+                            # 중복 체크 후 매수 리스트에 추가
+                            if stock_codes[company_name] not in buy_stocks:
+                                buy_stocks.append(stock_codes[company_name])
+                        else:
+                            print(f"   ⚠️ 기업: {company_name}, 종목코드: 미상장")
+                            print(f"   📄 이유: {company_result.get('reason', '')}")
+
+                elif category == "정책 기사":
+                    positives = policy_llm(article_text)
+
+                    if positives:
+                        print(f"   📊 긍정적 업종 {len(positives)}개 발견")
+
+                        # 정책 기사에서 긍정적인 업종 추출 후 각 업종 심층 분석
+                        for policy_category in positives[:2]:  # 최대 2개 업종만 분석
+                            category_name = policy_category.get('category', '')
+                            category_reason = policy_category.get('reason', '')
+
+                            print(f"   🔍 {category_name} 업종 분석 중...")
+
+                            try:
+                                # 해당 업종 관련 뉴스 크롤링
+                                sector_articles = crawl_naver_news_by_keyword(category_name, page=1, sort=1)
+                                comp_result = competitive_llm(category_name, category_reason, sector_articles)
+
+                                companies = comp_result.get('companies', [])
+                                for company in companies:
+                                    company_name = company.get('company')
+                                    if company_name in stock_codes:
+                                        print(f"   ✅ 업종: {category_name}, 기업: {company_name}")
+                                        print(f"   📈 종목코드: {stock_codes[company_name]}")
+                                        print(f"   📄 이유: {company.get('reason', '')}")
+
+                                        # 중복 체크 후 매수 리스트에 추가
+                                        if stock_codes[company_name] not in buy_stocks:
+                                            buy_stocks.append(stock_codes[company_name])
+                                    else:
+                                        print(f"   ⚠️ 업종: {category_name}, 기업: {company_name}, 종목코드: 미상장")
+                            except Exception as e:
+                                print(f"   ❌ {category_name} 업종 분석 실패: {e}")
+                    else:
+                        print(f"   ℹ️ 긍정적 업종이 발견되지 않았습니다.")
+
+                else:
+                    print(f"   ℹ️ 분류 결과: {category} - 추가 분석하지 않음")
+
+            except Exception as e:
+                print(f"   ❌ 뉴스 분석 실패: {e}")
+                continue
+
+        # 매수 결정 요약
+        print(f"\n💰 매수 결정 요약")
+        print("=" * 60)
+
+        if len(buy_stocks) > 0:
+            print(f"📋 총 {len(buy_stocks)}개 종목 매수 후보:")
+            for i, stock_code in enumerate(buy_stocks, 1):
+                # 종목명 찾기
+                stock_name = None
+                for name, code in stock_codes.items():
+                    if code == stock_code:
+                        stock_name = name
+                        break
+
+                print(f"   {i}. {stock_name} ({stock_code})")
+
+                # 실제 매수 실행
+                try:
+                    print(f"   💸 매수 실행 중...")
+                    kis.buy_stock(stock_code, 1)  # 1주씩 매수
+                    print(f"   ✅ 매수 완료!")
+                except Exception as e:
+                    print(f"   ❌ 매수 실패: {e}")
+        else:
+            print("📭 매수할 종목이 발견되지 않았습니다.")
+
+        return
+
+    # 기존 단일 기사 분석 모드
+    if not article:
+        print("❌ 분석할 기사 또는 JSON 데이터가 제공되지 않았습니다.")
+        return
+
+    print("🧪 단일 기사 분석 모드")
+    print("=" * 60)
+
     # LLM 분류 테스트
     category = classify_llm(article)
     print(f"분류 결과: {category}")
     
     # 종목코드 딕셔너리 로드
     stock_codes = load_stock_codes()
-    
     buy_stocks = []  # 매수할 종목 리스트
-    
+
     if category == "경제 기사":
         company_result = company_llm(article)
         # 경제기사에서 나온 기업들의 종목 코드 찾기
@@ -47,12 +181,12 @@ def llm_test(article: str):
                 print(f"기업: {company_name}, 종목코드: {stock_codes[company_name]}, 이유: {company_result.get('reason', '')}")
                 buy_stocks.append(stock_codes[company_name])
             else:
-                print(f"기업: {company_name}, 종목코드: 미상장, 이유: {company.get('reason', '')}")
-        
+                print(f"기업: {company_name}, 종목코드: 미상장, 이유: {company_result.get('reason', '')}")
+
     elif category == "정책 기사":
         positives = policy_llm(article)
         
-        # 정책 기사에서 긍정적인 업종 추출 후 각 업종 심층 분석 -> 각 호재 업종 마다 competitive_llm 호출
+        # 정책 기사에서 긍정적인 업종 추출 후 각 업종 심층 분석 -> �� 호재 업종 마다 competitive_llm 호출
         for category in positives:
             article = crawl_naver_news_by_keyword(category['category'], page=1, sort=1)
             comp_result = competitive_llm(category['category'], category['reason'], article)
@@ -71,7 +205,7 @@ def llm_test(article: str):
     if len(buy_stocks) > 0:
         for stock in buy_stocks:
             kis.buy_stock(stock)
-    
+
 
 if __name__ == "__main__":
     start = time.time()
@@ -96,9 +230,8 @@ if __name__ == "__main__":
 이재용 삼성전자 회장이 29일 강서구 서울김포비즈니스항공센터(SGBAC)를 통해 워싱턴으로 출국하고 있다. [사진 = 연합뉴스]
 한편 이재용 삼성전자 회장은 미국 워싱턴DC로 출국했다. 이 회장은 주요 파트너사와 글로벌 비즈니스 협력 방안을 논의하고 신사업 기회를 모색할 예정인 것으로 알려졌다. 재계에서는 이 회장이 미국 상호관세 발효를 앞두고 관세 협상 측면 지원에 나설 것이라는 관측이 나왔다.    
     """
-    
+
     llm_test(test_article)  # LLM 테스트 실행
-    
+
     end = time.time()
     print(f"Test completed in {end - start:.2f} seconds")
-            
