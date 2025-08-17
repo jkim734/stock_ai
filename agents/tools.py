@@ -9,6 +9,11 @@ import pandas_ta as ta
 import pandas as pd
 from urllib.parse import quote
 import yfinance as yf
+from google.adk.tools.crewai_tool import CrewaiTool
+from crewai_tools import SerperDevTool
+
+from google.adk.tools.langchain_tool import LangchainTool
+from langchain_community.tools import TavilySearchResults
 
 load_dotenv()
 API_KEY = os.getenv('API_KEY')
@@ -18,6 +23,8 @@ ACC_NUM = os.getenv('ACC_NUM')
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
 
+SERPER_API_KEY = os.getenv("TAVILY_API_KEY")
+
 broker = mojito.KoreaInvestment(
     api_key=API_KEY,
     api_secret=SECRET_KEY,
@@ -25,7 +32,19 @@ broker = mojito.KoreaInvestment(
     mock=True
 )
 
+tavily_tool_instance = TavilySearchResults(
+    max_results=5,
+    search_depth="advanced",
+    include_answer=True,
+    include_raw_content=True,
+    include_images=False,
+)
 
+adk_tavily_tool = LangchainTool(
+    tool=tavily_tool_instance,
+    name="InternetSearchTool",
+    description="특정 키워드에 대해 인터넷 검색을 해 주는 도구"
+)
 
 from datetime import datetime, timedelta
 
@@ -70,9 +89,9 @@ def summarize_indicators(df: pd.DataFrame, ticker: str = "", close: str = "Close
     return "\n".join(summary)
 
 
-def get_stock_data(ticker: str) -> pd.DataFrame:
+def get_stock_data(ticker: str) -> str:
     """
-    기술적 지표를 계산하여 해당 종목의 기술적 지표 요약 분석 리포트를 반환합니다.
+    기술적 지표를 계산하여 해당 종목의 기술적 지표 요약 분석 결과를 도출하는 도구.
 
     Args:
         ticker (str): 조회할 종목의 Ticker 코드 (예: '005930.KS')
@@ -92,25 +111,29 @@ def get_stock_data(ticker: str) -> pd.DataFrame:
         auto_adjust=False
     )
     # 컬럼 정리
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [' '.join(col).strip() for col in df.columns.values]
+    
+    try:
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [' '.join(col).strip() for col in df.columns.values]
 
-    # 유효한 Close 컬럼 자동 감지
-    close_col = next((col for col in df.columns if 'Close' in col and 'Adj' not in col), None)
-    if not close_col:
-        raise ValueError("Close 컬럼을 찾을 수 없습니다.")
-        
-    # 기술적 지표 추가
-    df["rsi"] = ta.rsi(df[close_col], length=14)
-    macd = ta.macd(df[close_col])
-    print(macd)
-    df["macd"] = macd["MACD_12_26_9"]
-    bb = ta.bbands(df[close_col], length=20)
-    df["bb_upper"] = bb["BBU_20_2.0"]
-    df["bb_lower"] = bb["BBL_20_2.0"]
-    df["sma20"] = ta.sma(df[close_col], length=20)
+        # 유효한 Close 컬럼 자동 감지
+        close_col = next((col for col in df.columns if 'Close' in col and 'Adj' not in col), None)
+        if not close_col:
+            raise ValueError("Close 컬럼을 찾을 수 없습니다.")
+            
+        # 기술적 지표 추가
+        df["rsi"] = ta.rsi(df[close_col], length=14)
+        macd = ta.macd(df[close_col])
+        df["macd"] = macd["MACD_12_26_9"]
+        bb = ta.bbands(df[close_col], length=20)
+        df["bb_upper"] = bb["BBU_20_2.0"]
+        df["bb_lower"] = bb["BBL_20_2.0"]
+        df["sma20"] = ta.sma(df[close_col], length=20)
+        print(df)
 
-    return summarize_indicators(df, ticker=ticker, close=close_col)
+        return summarize_indicators(df, ticker=ticker, close=close_col)
+    except Exception as e:
+        return f"error: {e}"
 
 
 
@@ -134,9 +157,9 @@ def clean_text(text: str) -> str:
     """HTML 태그 및 엔티티 제거"""
     return BeautifulSoup(html.unescape(text), "html.parser").get_text(strip=True)
 
-def search_naver_news(keyword: str, page: int = 1, sort: int = 1) -> List[str]:
+def search_naver_news(keyword: str, page: int = 1, sort: int = 1) -> Dict:
     """
-    기업 종목에 대해 Naver News에 검색을 수행하고, 결과로 뉴스 본문을 반환합니다.
+    특정 keyword 대해 Naver News에 검색을 수행하고, 결과로 뉴스 본문을 반환합니다.
 
     Args:
         keyword (str): 검색할 기업 이름
@@ -144,7 +167,7 @@ def search_naver_news(keyword: str, page: int = 1, sort: int = 1) -> List[str]:
         sort (int): 정렬 기준 (1: 최신순, 2: 관련도 순)
 
     Returns:
-        List[str]: 뉴스 본문 리스트
+        Dict: 뉴스 본문 딕셔너리
     """
 
     headers = {
@@ -169,22 +192,11 @@ def search_naver_news(keyword: str, page: int = 1, sort: int = 1) -> List[str]:
         if "description" in item
     ]
 
-    return descriptions
-    
+    return {"status": "success", "message": f"{descriptions}"}
+
     
 
 
 
 if __name__ == "__main__":
-    # 예시: 네이버 금융에서 삼성전자 관련 리포트 검색
-    
-    # kospi = broker.fetch_kospi_symbols()
-    # ticker_name_map = dict(zip(kospi['한글명'], kospi['단축코드']))
-    # print(ticker_name_map)
-    # print(ticker_name_map['삼성전자'])
-    
-    # reports = search_naver_news('삼성전자')
-    # print(len(reports), "reports found for 삼성전자")
-    # for report in reports:
-    #     print(report)
-    print(get_stock_data("005930.KS"))
+    print(search_naver_news("삼성전자"))
